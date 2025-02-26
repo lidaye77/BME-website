@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serial Port Data Reader</title>
+    <style>
+        /* General page styling */
+        body {
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #FFB6C1, #87CEFA);
+            color: #333;
+        }
+
+        /* Page container */
+        .page {
+            display: none;
+            height: 100vh;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        /* First page styling (connect page) */
+        .connect-page {
+            display: block;
+            text-align: center;
+            padding-top: 20%;
+        }
+
+        /* Data display page styling */
+        .data-page {
+            display: none;
+            text-align: center;
+            padding-top: 5%;
+            overflow-y: auto;
+        }
+
+        /* Cartoony button */
+        #connectButton, #downloadLogButton {
+            width: 250px;
+            padding: 15px;
+            margin: 20px 0;
+            border: none;
+            background-color: #ff77cc;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 30px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        #connectButton:hover, #downloadLogButton:hover {
+            background-color: #ff55a2;
+            transform: scale(1.1);
+        }
+
+        /* Cartoon character styling */
+        .cartoon-character {
+            width: 100%;
+            max-width: 350px;
+            margin: 0 auto;
+            border-radius: 50%;
+            border: 8px solid #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Data section styling */
+        .data-section {
+            margin: 20px auto;
+            padding: 20px;
+            border-radius: 20px;
+            text-align: center;
+            color: white;
+            font-size: 2em;
+            width: 80%;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+            transition: background 0.3s ease-in-out, transform 0.3s ease;
+        }
+
+        .data-section:hover {
+            transform: scale(1.05);
+        }
+
+        /* Gradient background for different data blocks */
+        #iaq {
+            background: linear-gradient(45deg, #ff77cc, #ff99cc);
+        }
+        #iaq_acc {
+            background: linear-gradient(45deg, #ffcc99, #ff9966);
+        }
+        #siaq {
+            background: linear-gradient(45deg, #ff66b2, #ff3399);
+        }
+        #temperature {
+            background: linear-gradient(45deg, #66b3ff, #3399ff);
+        }
+        #humidity {
+            background: linear-gradient(45deg, #66ff66, #33cc33);
+        }
+        #pressure {
+            background: linear-gradient(45deg, #ffcc66, #ff9900);
+        }
+        #co2 {
+            background: linear-gradient(45deg, #9999ff, #6666cc);
+        }
+        #bvoc {
+            background: linear-gradient(45deg, #ffccff, #ff66ff);
+        }
+
+        /* Smooth scroll for entire page */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        /* Adding some fun animation */
+        .bounce {
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-20px);
+            }
+        }
+
+        /* Adding fun fonts to buttons */
+		.cartoon-font {
+			font-family: 'Comic Sans MS', cursive, sans-serif;
+			font-weight: bold;
+			font-size: 2em; 
+			color: #ff6347;
+			text-align: center; 
+		}
+
+		/* For adding animation to emojis */
+		.cartoon-font span {
+			animation: pulse 1s infinite alternate;
+		}
+
+		@keyframes pulse {
+			0% {
+				transform: scale(1);
+			}
+			100% {
+				transform: scale(1.2);
+			}
+		}
+
+        /* Gradient effect for changing numbers */
+        .gradient-text {
+            animation: gradientText 2s infinite;
+        }
+
+        @keyframes gradientText {
+            0% {
+                color: #ff77cc;
+            }
+            50% {
+                color: #ffcc66;
+            }
+            100% {
+                color: #ff77cc;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- First page for connection -->
+    <div class="page connect-page">
+        <h1 class="cartoon-font">Welcome to PornHub, Click 'Connect' to start 😍😍😍😍</h1>
+        <img class="cartoon-character" src="https://img2.baidu.com/it/u=2576302228,3538469153&fm=253&fmt=auto&app=138&f=JPEG?w=500&h=500" alt="Cartoon Character">
+        <button id="connectButton" class="cartoon-font">Connect to Serial Port</button>
+    </div>
+
+    <!-- Second page for data display -->
+    <div class="page data-page">
+        <div id="iaq" class="data-section bounce">IAQ: Waiting for data...</div>
+        <div id="iaq_acc" class="data-section bounce">IAQ_ACC: Waiting for data...</div>
+        <div id="siaq" class="data-section bounce">sIAQ: Waiting for data...</div>
+        <div id="temperature" class="data-section bounce">Temperature: Waiting for data...</div>
+        <div id="humidity" class="data-section bounce">Humidity: Waiting for data...</div>
+        <div id="pressure" class="data-section bounce">Pressure: Waiting for data...</div>
+        <div id="co2" class="data-section bounce">CO2: Waiting for data...</div>
+        <div id="bvoc" class="data-section bounce">bVoc: Waiting for data...</div>
+        <button id="downloadLogButton" class="cartoon-font">Download Log</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <script>
+        let port;
+        let reader;
+        let decoder;
+        let inputDone;
+        let inputStream;
+
+        // Variables to store the latest data and log data
+        let lastData = {
+            iaq: null,
+            iaq_acc: null,
+            siaq: null,
+            temperature: null,
+            humidity: null,
+            pressure: null,
+            co2: null,
+            bvoc: null
+        };
+        let logData = ""; // Store the log data
+
+        // Request port function
+        async function requestPort() {
+            try {
+                port = await navigator.serial.requestPort();
+                console.log("Serial port selected: ", port);
+                await openPort();
+                showDataPage(); // Show the data display page after connection
+            } catch (error) {
+                console.error("Error selecting serial port:", error);
+            }
+        }
+
+        // Open the serial port
+        async function openPort() {
+            try {
+                await port.open({ baudRate: 115200 });
+                console.log("Serial port opened");
+
+                // Setup stream reader
+                inputStream = port.readable;
+                reader = inputStream.getReader();
+                decoder = new TextDecoder();
+                readData();  // Start reading data
+            } catch (error) {
+                console.error("Error opening serial port:", error);
+            }
+        }
+
+        // Function to read data from the serial port
+        async function readData() {
+            try {
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) {
+                        break;
+                    }
+                    const decodedData = decoder.decode(value, { stream: true }).trim();
+                    updateData(decodedData);
+                }
+            } catch (error) {
+                console.error("Error reading data from serial port:", error);
+            }
+        }
+
+        // Function to update the data and log it
+        function updateData(data) {
+            // Clean and split the data by commas
+            const cleanedData = data.replace(/\s+/g, ''); // Remove unnecessary spaces
+            const values = cleanedData.split(',');
+
+            console.log("Values length:", values.length); // Log the length of the array
+
+            // Ensure we have enough data points to extract all values
+            if (values.length >= 13) {
+                const newData = {
+                    iaq: values[1].trim(),
+                    iaq_acc: values[2].trim(),
+                    siaq: values[3].trim(),
+                    temperature: values[6].trim()+ "    C",
+                    humidity: values[7].trim()+ "    %rH",
+                    pressure: values[8].trim()+ "    Pa",
+                    co2: values[11].trim()+ "     ppm",
+                    bvoc: values[12].trim()+ "   ppm"
+                };
+
+                // Update the page only if the data has changed
+                let updated = false;
+                for (let key in newData) {
+                    if (newData[key] !== lastData[key]) {
+                        document.getElementById(key).textContent = `${key.toUpperCase()}: ${newData[key]}`;
+                        document.getElementById(key).classList.add('gradient-text');
+                        lastData[key] = newData[key];
+                        updated = true;
+                    }
+                }
+
+                // Log both original and processed data to the logData string
+                if (updated) {
+                    logData += `Original Data: ${data}\nProcessed Data: ${JSON.stringify(newData)}\n\n`;
+                }
+            } else {
+                console.error("Data format error: not enough data fields");
+            }
+        }
+
+        // Function to show the data page and hide the connect page
+        function showDataPage() {
+            document.querySelector('.connect-page').style.display = 'none';
+            document.querySelector('.data-page').style.display = 'block';
+        }
+
+        // Event listener for connect button
+        document.getElementById('connectButton').addEventListener('click', requestPort);
+
+        // Function to download the log data as a text file
+        document.getElementById('downloadLogButton').addEventListener('click', function() {
+            // Create a Blob object from the logData
+            const blob = new Blob([logData], { type: 'text/plain' });
+            saveAs(blob, 'data_log.txt');
+        });
+    </script>
+</body>
+</html>
